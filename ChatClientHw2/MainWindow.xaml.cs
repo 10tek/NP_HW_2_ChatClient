@@ -24,7 +24,8 @@ namespace ChatClientHw2
     public partial class MainWindow : Window
     {
         private readonly Socket socket;
-        private int port = 8005; // порт сервера
+        private int portServ = 8005; // порт сервера
+        private int portClient = new Random().Next(1000,9999);
         private string address = "127.0.0.1";
 
         public MainWindow()
@@ -57,7 +58,7 @@ namespace ChatClientHw2
 
             try
             {
-                IPEndPoint ipPoint = new IPEndPoint(IPAddress.Parse(address), port);
+                IPEndPoint ipPoint = new IPEndPoint(IPAddress.Parse(address), portServ);
 
                 Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 // подключаемся к удаленному хосту
@@ -67,7 +68,7 @@ namespace ChatClientHw2
                     Text = textTB.Text,
                     User = userTB.Text
                 };
-                var json = JsonConvert.SerializeObject(message);
+                var json = $"{portClient}" + JsonConvert.SerializeObject(message);
                 byte[] data = Encoding.Unicode.GetBytes(json);
                 socket.Send(data);
 
@@ -76,12 +77,17 @@ namespace ChatClientHw2
                 StringBuilder builder = new StringBuilder();
                 int bytes = 0; // количество полученных байт
 
+                var getSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                var getIpPoint = new IPEndPoint(IPAddress.Parse(address), portClient);
+                getSocket.Bind(getIpPoint);
+                getSocket.Listen(1);
+                var handler = getSocket.Accept();
                 do
                 {
-                    bytes = socket.Receive(data, data.Length, 0);
+                    bytes = handler.Receive(data);
                     builder.Append(Encoding.Unicode.GetString(data, 0, bytes));
                 }
-                while (socket.Available > 0);
+                while (handler.Available > 0);
 
                 var messagesJson = builder.ToString();
                 var messagesList = JsonConvert.DeserializeObject<List<Message>>(messagesJson);
@@ -94,6 +100,8 @@ namespace ChatClientHw2
                 // закрываем сокет
                 socket.Shutdown(SocketShutdown.Both);
                 socket.Close();
+                handler.Shutdown(SocketShutdown.Both);
+                handler.Dispose();
                 textTB.Text = string.Empty;
             }
             catch (Exception ex)
